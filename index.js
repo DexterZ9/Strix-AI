@@ -1,23 +1,35 @@
 const { Telegraf } = require('telegraf');
-const config = require('./config');
+require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
-const bot = new Telegraf(config.BOT_TOKEN);
+// Inicializa el bot
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Importa los comandos
-const startCommand = require('./commands/start');
-const helpCommand = require('./commands/help');
-const holaCommand = require('./commands/hola');
+// Cargar comandos automáticamente
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-// Configura los comandos
-bot.start((ctx) => startCommand(ctx));
-bot.help((ctx) => helpCommand(ctx));
-bot.command('hola', (ctx) => holaCommand(ctx));
+let loadedCommands = 0;
 
-// Lanza el bot
-bot.launch()
-  .then(() => console.log('Strix-AI está en línea!'))
-  .catch((err) => console.error('Error al lanzar el bot:', err));
+commandFiles.forEach(file => {
+  const { commands, handler } = require(`./commands/${file}`);
 
-// Manejo de apagado del bot de forma segura
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  if (commands && handler) {
+    commands.forEach(command => {
+      bot.command(command, (ctx) => handler(ctx));
+      console.log(`✅ Comando cargado: /${command}`);
+      loadedCommands++;
+    });
+  } else {
+    console.warn(`⚠️ Archivo ignorado (formato inválido): ${file}`);
+  }
+});
+
+// Iniciar el bot
+bot.launch().then(() => {
+  console.log('🚀 Strix-AI ha iniciado correctamente.');
+  console.log(`📌 Total de comandos cargados: ${loadedCommands}`);
+}).catch((err) => {
+  console.error('❌ Error al iniciar el bot:', err.message);
+});
